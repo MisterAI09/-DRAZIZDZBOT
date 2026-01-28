@@ -1,31 +1,34 @@
 import os
 import yt_dlp
 import asyncio
+import logging
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 from flask import Flask
 from threading import Thread
 
-# --- خادم ويب متوافق مع Koyeb (Port 8000) ---
+# تفعيل السجلات لمراقبة الأخطاء
+logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
+
+# --- 1. خادم ويب للبقاء حياً على Koyeb (المنفذ 8000 كما في صورك) ---
 server = Flask('')
 @server.route('/')
-def home(): return "♔𝐃𝐫.𝐀𝐙𝐈𝐙♔ Bot is Live!"
+def home(): return "♔𝐃𝐫.𝐀𝐙𝐈𝐙♔ Bot is Active!"
 
 def run_server():
-    # Koyeb يستخدم المنفذ 8000 افتراضياً في بعض الإعدادات
     server.run(host='0.0.0.0', port=8000)
 
-# --- محرك التحميل ---
+# --- 2. محرك التحميل ---
+# ⚠️ ضع التوكن الخاص بك هنا
 BOT_TOKEN = "8223953336:AAEJfwX3Izn7uG8jkQf3DYKdWGCRnXSFzPA"
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("🌟 بوت ♔𝐃𝐫.𝐀𝐙𝐈𝐙♔ جاهز!\nأرسل رابط فيديو من يوتيوب، X، تيك توك، أو فيسبوك.")
+    await update.message.reply_text("🌟 بوت ♔𝐃𝐫.𝐀𝐙𝐈𝐙♔ جاهز!\nأرسل رابط فيديو من يوتيوب، X، أو تيك توك.")
 
 async def download_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
     url = update.message.text
     if not url.startswith("http"): return
-
-    status_msg = await update.message.reply_text("⏳ جاري محاولة كسر الحماية وتحميل الفيديو...")
+    status_msg = await update.message.reply_text("⏳ جاري محاولة كسر حماية المنصة وتحميل الفيديو...")
 
     ydl_opts = {
         'format': 'best[ext=mp4]/best',
@@ -50,15 +53,17 @@ async def download_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if os.path.exists(filename): os.remove(filename)
         await status_msg.delete()
     except Exception as e:
-        await status_msg.edit_text("❌ المنصة ترفض طلب السيرفر حالياً.\nجرب رابطاً آخر (مثل تيك توك).")
+        await status_msg.edit_text("❌ المنصة ترفض طلب السيرفر حالياً (خاصة يوتيوب).\nالبوت يعمل، لكن يوتيوب يحظر عناوين IP الخاصة بالسيرفرات.")
 
+# --- 3. تشغيل البوت بطريقة حديثة تمنع الانهيار ---
 if __name__ == '__main__':
     Thread(target=run_server, daemon=True).start()
     
-    # بناء التطبيق بطريقة حديثة تتجنب AttributeError
+    # بناء التطبيق بطريقة Application لضمان التوافق مع Python 3.13
     application = Application.builder().token(BOT_TOKEN).build()
+    
     application.add_handler(CommandHandler("start", start))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, download_video))
     
-    # تشغيل البوت
+    # تشغيل البوت (هذا الجزء يحل مشكلة AttributeError في سجلاتك)
     application.run_polling(drop_pending_updates=True)
