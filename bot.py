@@ -21,7 +21,7 @@ def run_server():
 
 # --- 2. إعدادات البوت والتحميل ---
 # ⚠️ ضع التوكن الخاص بك هنا
-BOT_TOKEN = "ضع_التوكن_هنا"
+BOT_TOKEN = "8223953336:AAEJfwX3Izn7uG8jkQf3DYKdWGCRnXSFzPA"
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("🌟 أهلاً بك! أنا بوت ♔𝐃𝐫.𝐀𝐙𝐈𝐙♔\nأرسل رابط فيديو من (YouTube, TikTok, X, Facebook) وسأقوم بتحميله!")
