@@ -6,77 +6,76 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters, C
 from flask import Flask
 from threading import Thread
 
-# --- 1. نظام إبقاء البوت مستيقظاً (Flask Server) ---
+# --- خادم الويب (Koyeb/Render) ---
 server = Flask('')
-
 @server.route('/')
-def home():
-    return "Bot ♔𝐃𝐫.𝐀𝐙𝐈𝐙♔ is Running!"
+def home(): return "Bot ♔𝐃𝐫.𝐀𝐙𝐈𝐙♔ is Active!"
 
-def run_http_server():
-    # المنفذ 8080 هو الافتراضي لمعظم المنصات مثل Koyeb و Render
+def run_server():
     server.run(host='0.0.0.0', port=8080)
 
-def keep_alive():
-    t = Thread(target=run_http_server)
-    t.daemon = True
-    t.start()
-
-# --- 2. إعدادات البوت والتحميل ---
-
-# ⚠️ ضع التوكن الخاص بك هنا
+# --- محرك التحميل الشامل ---
+# ⚠️ استبدل هذا بالتوكن الخاص بك
 BOT_TOKEN = "8223953336:AAEJfwX3Izn7uG8jkQf3DYKdWGCRnXSFzPA"
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "مرحباً بك في بوت ♔𝐃𝐫.𝐀𝐙𝐈𝐙♔\n\n"
-        "أرسل لي رابط الفيديو وسأقوم بتحميله لك فوراً! 🚀"
+        "🌟 أهلاً بك في بوت ♔𝐃𝐫.𝐀𝐙𝐈𝐙♔\n\n"
+        "يمكنني التحميل من:\n"
+        "• منصة X (تويتر)\n"
+        "• يوتيوب (YouTube)\n"
+        "• تيك توك (TikTok)\n"
+        "• فيسبوك وانستغرام\n\n"
+        "فقط أرسل الرابط الآن! 🚀"
     )
 
 async def download_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
     url = update.message.text
-    if not url.startswith("http"):
-        return
+    if not url.startswith("http"): return
 
-    status_msg = await update.message.reply_text("⏳ جاري التحميل... انتظر ثانية")
+    status_msg = await update.message.reply_text("⏳ جاري جلب الفيديو من منصة X/Twitter...")
 
     ydl_opts = {
-        'format': 'best',
+        # جلب أفضل جودة ممكنة للمنصة
+        'format': 'bestvideo+bestaudio/best',
         'outtmpl': 'video_%(id)s.%(ext)s',
+        'merge_output_format': 'mp4',
         'quiet': True,
-        'max_filesize': 48 * 1024 * 1024, # حد أقصى 48 ميجابايت
+        'no_warnings': True,
+        # محاكاة متصفح لتجنب حظر تويتر
+        'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'max_filesize': 48 * 1024 * 1024, # 48MB
     }
 
     try:
-        # استخدام loop لتجنب حظر العمليات المتزامنة
         loop = asyncio.get_event_loop()
-        info = await loop.run_in_executor(None, lambda: yt_dlp.YoutubeDL(ydl_opts).extract_info(url, download=True))
-        filename = yt_dlp.YoutubeDL(ydl_opts).prepare_filename(info)
         
-        await status_msg.edit_text("✅ تم التحميل! جاري الرفع لتلجرام...")
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            # استخراج المعلومات والتحميل
+            info = await loop.run_in_executor(None, lambda: ydl.extract_info(url, download=True))
+            filename = ydl.prepare_filename(info)
+            # التأكد من الامتداد بعد الدمج
+            if not os.path.exists(filename):
+                filename = filename.rsplit('.', 1)[0] + ".mp4"
+
+        await status_msg.edit_text("🚀 جاري الرفع لتلجرام...")
         
         with open(filename, 'rb') as video:
-            await update.message.reply_video(video, caption="تم التحميل بواسطة ♔𝐃𝐫.𝐀𝐙𝐈𝐙♔")
+            await update.message.reply_video(
+                video=video, 
+                caption=f"✅ تم التحميل من منصة X\nبواسطة: ♔𝐃𝐫.𝐀𝐙𝐈𝐙♔"
+            )
         
-        if os.path.exists(filename):
-            os.remove(filename)
+        if os.path.exists(filename): os.remove(filename)
         await status_msg.delete()
 
     except Exception as e:
-        await status_msg.edit_text(f"❌ خطأ: قد يكون الملف كبيراً جداً أو الرابط غير مدعوم.")
+        await status_msg.edit_text("❌ عذراً، لم أتمكن من تحميل هذا الفيديو. قد يكون الحساب خاصاً (Private) أو الفيديو كبيراً جداً.")
 
-# --- 3. تشغيل البوت النهائي ---
 if __name__ == '__main__':
-    # تشغيل خادم الويب أولاً
-    keep_alive()
-    
-    # بناء تطبيق التلجرام
-    application = Application.builder().token(BOT_TOKEN).build()
-    
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, download_video))
-    
-    print("Bot ♔𝐃𝐫.𝐀𝐙𝐈𝐙♔ has started...")
-    
-    # تشغيل البوت مع إعدادات التوافق لإصدارات Python الحديثة
-    application.run_polling(drop_pending_updates=True)
+    Thread(target=run_server, daemon=True).start()
+    app = Application.builder().token(BOT_TOKEN).build()
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, download_video))
+    print("♔𝐃𝐫.𝐀𝐙𝐈𝐙♔ Bot is starting...")
+    app.run_polling(drop_pending_updates=True)
