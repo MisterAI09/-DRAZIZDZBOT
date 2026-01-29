@@ -16,7 +16,7 @@ def run_flask():
     app.run(host='0.0.0.0', port=8000)
 
 # --- محرك التحميل ---
-BOT_TOKEN = "ضع_التوكن_هنا"
+BOT_TOKEN = "8223953336:AAEJfwX3Izn7uG8jkQf3DYKdWGCRnXSFzPA"
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("👋 أهلاً بك! بوت ♔𝐃𝐫.𝐀𝐙𝐈𝐙♔ شغال الآن ويسمعك.\nأرسل أي رابط فيديو!")
