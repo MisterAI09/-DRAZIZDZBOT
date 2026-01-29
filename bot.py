@@ -1,75 +1,72 @@
-import os
-import yt_dlp
-import asyncio
-import logging
-from telegram import Update
-from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
+import os, asyncio, logging, yt_dlp
 from flask import Flask
 from threading import Thread
+from telegram import Update
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
-# تفعيل السجلات لمعرفة الأخطاء فوراً
+# إعداد السجلات (للمراقبة في سجلات Koyeb)
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
-# --- 1. خادم ويب صغير لإرضاء السيرفر (Koyeb) ---
-server = Flask('')
-@server.route('/')
-def home(): return "البوت يعمل بنجاح!"
+# --- خادم الويب لإرضاء Koyeb ---
+app = Flask(__name__)
+@app.route('/')
+def health_check(): return "OK", 200
 
-def run_server():
-    # المنفذ 8000 كما يظهر في إعداداتك بالصور
-    server.run(host='0.0.0.0', port=8000)
+def run_flask():
+    app.run(host='0.0.0.0', port=8000)
 
-# --- 2. إعدادات البوت والتحميل ---
-# ⚠️ ضع التوكن الخاص بك هنا
-BOT_TOKEN = "8223953336:AAEJfwX3Izn7uG8jkQf3DYKdWGCRnXSFzPA"
+# --- محرك التحميل ---
+BOT_TOKEN = "ضع_التوكن_هنا"
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("🌟 أهلاً بك! أنا بوت ♔𝐃𝐫.𝐀𝐙𝐈𝐙♔\nأرسل رابط فيديو من (YouTube, TikTok, X, Facebook) وسأقوم بتحميله!")
+    await update.message.reply_text("👋 أهلاً بك! بوت ♔𝐃𝐫.𝐀𝐙𝐈𝐙♔ شغال الآن ويسمعك.\nأرسل أي رابط فيديو!")
 
 async def download_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
     url = update.message.text
-    if not url.startswith("http"): return
-
-    status_msg = await update.message.reply_text("🔎 جاري التحميل وتجاوز القيود...")
-
+    status = await update.message.reply_text("⏳ جاري معالجة الرابط...")
+    
     ydl_opts = {
-        'format': 'best[ext=mp4]/best',
-        'outtmpl': 'video_%(id)s.%(ext)s',
-        'quiet': True,
-        'no_warnings': True,
+        'format': 'best',
+        'outtmpl': 'vid_%(id)s.%(ext)s',
         'nocheckcertificate': True,
-        # محاكاة متصفح حقيقي لعدم الحظر
         'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
-        'referer': 'https://www.google.com/',
-        'max_filesize': 48 * 1024 * 1024, # حد التلجرام 48 ميجا
     }
 
     try:
-        loop = asyncio.get_event_loop()
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            loop = asyncio.get_event_loop()
             info = await loop.run_in_executor(None, lambda: ydl.extract_info(url, download=True))
-            filename = ydl.prepare_filename(info)
-
-        await status_msg.edit_text("🚀 تم التحميل! جاري الرفع لتلجرام...")
-        with open(filename, 'rb') as video:
-            await update.message.reply_video(video=video, caption=f"✅ تم بواسطة ♔𝐃𝐫.𝐀𝐙𝐈𝐙♔\n🎬: {info.get('title')[:50]}")
+            path = ydl.prepare_filename(info)
         
-        if os.path.exists(filename): os.remove(filename)
-        await status_msg.delete()
-
+        await status.edit_text("🚀 جاري رفع الفيديو...")
+        with open(path, 'rb') as f:
+            await update.message.reply_video(video=f, caption="✅ تم بواسطة ♔𝐃𝐫.𝐀𝐙𝐈𝐙♔")
+        os.remove(path)
+        await status.delete()
     except Exception as e:
-        await status_msg.edit_text("❌ عذراً، لم أستطع تحميل هذا الفيديو. قد يكون محمياً أو حجمه كبير جداً.")
+        await status.edit_text(f"❌ فشل: {str(e)[:100]}")
 
-# --- 3. التشغيل الصحيح (يحل مشكلة عدم الاستجابة) ---
-if __name__ == '__main__':
-    # تشغيل خادم الويب في الخلفية
-    Thread(target=run_server, daemon=True).start()
+# --- التشغيل الرئيسي ---
+async def main():
+    # تشغيل Flask في خيط منفصل
+    Thread(target=run_flask, daemon=True).start()
     
-    # بناء التطبيق بطريقة Application (الإصدار الجديد)
+    # بناء تطبيق التلجرام
     application = Application.builder().token(BOT_TOKEN).build()
-    
     application.add_handler(CommandHandler("start", start))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, download_video))
     
-    # هذه الطريقة تضمن أن البوت لا ينهار (Crash)
-    application.run_polling(drop_pending_updates=True)
+    # تشغيل البوت
+    async with application:
+        await application.initialize()
+        await application.start()
+        print("Bot is Polling...")
+        await application.updater.start_polling(drop_pending_updates=True)
+        # إبقاء البوت حياً
+        while True: await asyncio.sleep(3600)
+
+if __name__ == '__main__':
+    try:
+        asyncio.run(main())
+    except (KeyboardInterrupt, SystemExit):
+        pass
